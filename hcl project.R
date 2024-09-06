@@ -173,3 +173,10 @@ ggplot(projects_by_category, aes(x = PerformanceCategory, y = TotalProjects, fil
   geom_bar(stat = "identity") +
   labs(title = "Total Projects Completed by Performance Category", x = "Performance Category", y = "Total Projects Completed") +
   theme_minimal()
+
+# Create a summary of job satisfaction levels
+satisfaction_summary <- data %>%
+  group_by(SatisfactionLevel) %>%
+  summarise(Count = n(), MeanProductivity = mean(Productivity), .groups = 'drop')
+
+print(satisfaction_summary)
