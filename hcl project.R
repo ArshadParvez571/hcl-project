@@ -1,326 +1,424 @@
 # Load necessary libraries
-library(dplyr)       # For data manipulation
-library(ggplot2)     # For data visualization
-library(corrplot)    # For correlation matrix visualization
-library(ggcorrplot)  # For enhanced correlation plots
-library(cluster)     # For clustering analysis
-library(lubridate)   # For date manipulation
+library(shiny)
+library(shinydashboard)  # For a dashboard-style layout
+library(dplyr)
+library(ggplot2)
+library(corrplot)
+library(ggcorrplot)
+library(plotly)
+library(shinycssloaders)  # For loading animations
+library(shinyjs)  # For enabling/disabling UI elements
+library(DT)  # For interactive tables
 
-# Step 1: Create the dataset as provided
-df <- data.frame(
-  Education = c("Bachelor's", "Master's", "PhD", "Bachelor's", "Master's"),
-  JoiningYear = c(2015, 2017, 2018, 2020, 2016),
-  City = c('New York', 'San Francisco', 'Los Angeles', 'Chicago', 'Austin'),
-  PaymentTier = c(3, 2, 1, 2, 3),
-  Age = c(25, 30, 28, 35, 26),
-  Gender = c('Male', 'Female', 'Non-binary', 'Female', 'Male'),
-  EverBenched = c('No', 'Yes', 'No', 'Yes', 'No'),
-  ExperienceInCurrentDomain = c(2, 5, 3, 6, 1),
-  LeaveOrNot = c(0, 1, 0, 1, 0), # 0 = Stayed, 1 = Left
-  Department = c('IT', 'Finance', 'HR', 'IT', 'Marketing'),
-  JobRole = c('Developer', 'Analyst', 'Manager', 'Developer', 'Consultant'),
-  AnnualSalary = c(60000, 75000, 90000, 65000, 55000),
-  PerformanceRating = c(4, 3, 5, 4, 3) # Rating out of 5
+# Defining CSS styles
+custom_css <- "
+.dashboard-header {
+  background-color: #4e73df; /* Dark blue header */
+  color: white;
+}
+
+.sidebar {
+  background-color: #343a40; /* Dark sidebar */
+}
+
+.sidebar-menu > li > a {
+  color: #ffffff; /* White text */
+}
+
+.sidebar-menu > li.active > a {
+  background-color: #007bff; /* Blue active menu item */
+}
+
+.box {
+  border-radius: 8px;
+}
+
+.box-header {
+  background-color: #f8f9fa; /* Light grey header for boxes */
+}
+
+.box-body {
+  background-color: #ffffff; /* White background for boxes */
+}
+
+h2, h3, h4 {
+  font-family: 'Arial'; /* Custom font for headings */
+}
+
+button {
+  background-color: #007bff; /* Button color */
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 10px;
+}
+
+button:hover {
+  background-color: #0056b3; /* Darker blue on hover */
+}
+
+.table {
+  border-radius: 8px;
+}
+"
+
+# Defining UI for application
+ui <- dashboardPage(
+  dashboardHeader(title = "Employee Productivity Analysis"),
+  dashboardSidebar(
+    sidebarMenu(
+      menuItem("Login", tabName = "login", icon = icon("user")),
+      menuItem("Sign Up", tabName = "signup", icon = icon("user-plus")),
+      conditionalPanel(
+        condition = "output.logged_in == true",  # Show only after login
+        menuItem("Main Menu", icon = icon("list"), tabName = "main_menu"),
+        menuItem("Data Summary", tabName = "data_summary", icon = icon("table")),
+        menuItem("Employee Data", tabName = "employee_data", icon = icon("users")),
+        menuItem("Productivity by Department", tabName = "dept_plot", icon = icon("chart-bar")),
+        menuItem("Salary Distribution", tabName = "salary_plot", icon = icon("dollar-sign")),
+        menuItem("Correlation Matrix", tabName = "correlation_plot", icon = icon("project-diagram")),
+        menuItem("Churn Analysis", tabName = "churn_plot", icon = icon("user-times")),
+        menuItem("Gender Productivity Analysis", tabName = "gender_plot", icon = icon("venus-mars")),
+        menuItem("Performance Trends by Year", tabName = "year_trend_plot", icon = icon("calendar")),
+        menuItem("Salary vs Performance", tabName = "salary_performance_plot", icon = icon("chart-line")),
+        menuItem("Education Productivity", tabName = "education_plot", icon = icon("graduation-cap")),
+        menuItem("Demographics Age Distribution", tabName = "demographics_plot", icon = icon("users")),
+        menuItem("Employee Retention", tabName = "retention_rate_plot", icon = icon("user-check")),
+        menuItem("Job Role vs Experience", tabName = "job_role_experience_plot", icon = icon("briefcase")),
+        menuItem("Payment Tier Insights", tabName = "payment_tier_plot", icon = icon("money-bill-wave")),
+        menuItem("Employee Overview", tabName = "employee_overview", icon = icon("eye")),
+        menuItem("Department Insights", tabName = "department_insights", icon = icon("business-time"))
+      )
+    )
+  ),
+  dashboardBody(
+    useShinyjs(),  # Enable shinyjs for UI interactions
+    tags$head(tags$style(custom_css)),  # Add custom CSS
+    tabItems(
+      tabItem(tabName = "login",
+              fluidRow(
+                box(title = "Login", width = 12,
+                    textInput("username", "Username"),
+                    passwordInput("password", "Password"),
+                    actionButton("login", "Login"),
+                    br(),
+                    textOutput("login_status")
+                )
+              )
+      ),
+      tabItem(tabName = "signup",
+              fluidRow(
+                box(title = "Sign Up", width = 12,
+                    textInput("new_username", "New Username"),
+                    passwordInput("new_password", "New Password"),
+                    actionButton("signup", "Sign Up"),
+                    br(),
+                    textOutput("signup_status")
+                )
+              )
+      ),
+      tabItem(tabName = "main_menu",
+              fluidRow(
+                box(title = "Welcome to Employee Productivity Analysis", width = 12,
+                    h3("Overview"),
+                    p("This application provides insights into employee productivity and demographics. You can analyze data based on various parameters, including department, salary, gender, and more."),
+                    h4("Features:"),
+                    tags$ul(
+                      tags$li("View Data Summary: Analyze the dataset to understand its structure."),
+                      tags$li("Explore Employee Data: View and manage employee information."),
+                      tags$li("Analyze Productivity by Department: Visualize productivity across different departments."),
+                      tags$li("Salary Insights: Explore salary distributions and trends."),
+                      tags$li("Churn Analysis: Understand employee retention and churn rates."),
+                      tags$li("Visualize Performance Trends: Track performance changes over the years."),
+                      tags$li("And more...")
+                    ),
+                    p("Navigate through the menu on the left to explore different insights.")
+                )
+              )
+      ),
+      tabItem(tabName = "data_summary", verbatimTextOutput("data_summary")),
+      tabItem(tabName = "employee_data",
+              fluidRow(
+                box(title = "Employee Data", width = 12,
+                    DTOutput("employee_table"),
+                    actionButton("add_row", "Add New Employee"),
+                    br(),
+                    textOutput("row_status")
+                )
+              )
+      ),
+      tabItem(tabName = "dept_plot", plotlyOutput("dept_plot") %>% withSpinner()),
+      tabItem(tabName = "salary_plot", plotlyOutput("salary_plot") %>% withSpinner()),
+      tabItem(tabName = "correlation_plot", plotOutput("correlation_plot") %>% withSpinner()),
+      tabItem(tabName = "churn_plot", plotlyOutput("churn_plot") %>% withSpinner()),
+      tabItem(tabName = "gender_plot", plotlyOutput("gender_plot") %>% withSpinner()),
+      tabItem(tabName = "year_trend_plot", plotlyOutput("year_trend_plot") %>% withSpinner()),
+      tabItem(tabName = "salary_performance_plot", plotlyOutput("salary_performance_plot") %>% withSpinner()),
+      tabItem(tabName = "education_plot", plotlyOutput("education_plot") %>% withSpinner()),
+      tabItem(tabName = "demographics_plot", plotlyOutput("demographics_plot") %>% withSpinner()),
+      tabItem(tabName = "retention_rate_plot", plotlyOutput("retention_rate_plot") %>% withSpinner()),
+      tabItem(tabName = "job_role_experience_plot", plotlyOutput("job_role_experience_plot") %>% withSpinner()),
+      tabItem(tabName = "payment_tier_plot", plotlyOutput("payment_tier_plot") %>% withSpinner()),
+      tabItem(tabName = "employee_overview",
+              fluidRow(
+                box(title = "Employee Overview", width = 12,
+                    h4("Demographics Summary"),
+                    verbatimTextOutput("demographics_summary"),
+                    plotlyOutput("job_role_distribution") %>% withSpinner()
+                )
+              )
+      ),
+      tabItem(tabName = "department_insights",
+              fluidRow(
+                box(title = "Department Insights", width = 12,
+                    plotlyOutput("average_salary_by_department") %>% withSpinner(),
+                    verbatimTextOutput("department_summary")
+                )
+              )
+      )
+    )
+  )
 )
 
-# Custom theme with white text and white background
-custom_theme <- theme_minimal(base_family="sans") +
-  theme(
-    panel.background = element_rect(fill = "white"),
-    plot.title = element_text(color = "white"),
-    axis.title.x = element_text(color = "white"),
-    axis.title.y = element_text(color = "white"),
-    axis.text.x = element_text(color = "white"),
-    axis.text.y = element_text(color = "white"),
-    legend.text = element_text(color = "white"),
-    legend.title = element_text(color = "white")
+# Defining server logic
+server <- function(input, output, session) {
+  # Reactive values to store user data and state of login
+  user_data <- reactiveValues(
+    users = data.frame(username = character(), password = character(), stringsAsFactors = FALSE),
+    logged_in = FALSE
   )
-
-# Step 2: Overview of the dataset
-print("Summary of the dataset:")
-summary(df)
-
-# Step 3: Adding ProductivityScore (Performance * Experience)
-df <- df %>%
-  mutate(ProductivityScore = PerformanceRating * ExperienceInCurrentDomain)
-
-# Step 4: Check the updated dataset
-print("Updated dataset with ProductivityScore:")
-print(df)
-
-# Step 5: Adding SalaryToProductivityRatio and AgeGroup
-df <- df %>%
-  mutate(
-    SalaryToProductivityRatio = AnnualSalary / ProductivityScore,
-    AgeGroup = case_when(
-      Age < 30 ~ "Young",
-      Age >= 30 & Age < 40 ~ "Middle-aged",
-      TRUE ~ "Senior"
+  
+  # User login
+  observeEvent(input$login, {
+    if (input$username %in% user_data$users$username &&
+        input$password == user_data$users$password[user_data$users$username == input$username]) {
+      user_data$logged_in <- TRUE
+      output$login_status <- renderText("Login successful!")
+      shinyjs::disable("login")  # Disable login button after successful login
+    } else {
+      output$login_status <- renderText("Invalid username or password.")
+    }
+  })
+  
+  # User sign-up
+  observeEvent(input$signup, {
+    if (input$new_username == "" || input$new_password == "") {
+      output$signup_status <- renderText("Please enter both username and password.")
+    } else {
+      user_data$users <- rbind(user_data$users, data.frame(username = input$new_username, password = input$new_password, stringsAsFactors = FALSE))
+      output$signup_status <- renderText("Sign up successful! You can now log in.")
+    }
+  })
+  
+  output$logged_in <- reactive({ user_data$logged_in })
+  outputOptions(output, "logged_in", suspendWhenHidden = FALSE)
+  
+  # Creating a sample dataset
+  df <- data.frame(
+    Education = sample(c("Bachelor's", "Master's", "PhD"), 1000, replace = TRUE),
+    JoiningYear = sample(2000:2023, 1000, replace = TRUE),
+    City = sample(c('New York', 'San Francisco', 'Los Angeles', 'Chicago', 'Austin'), 1000, replace = TRUE),
+    PaymentTier = sample(1:3, 1000, replace = TRUE),
+    Age = sample(20:60, 1000, replace = TRUE),
+    Gender = sample(c('Male', 'Female', 'Non-binary'), 1000, replace = TRUE),
+    EverBenched = sample(c('No', 'Yes'), 1000, replace = TRUE),
+    ExperienceInCurrentDomain = sample(0:20, 1000, replace = TRUE),
+    LeaveOrNot = sample(0:1, 1000, replace = TRUE),
+    Department = sample(c('IT', 'HR', 'Finance', 'Marketing', 'Sales'), 1000, replace = TRUE),
+    JobRole = sample(c('Developer', 'Manager', 'Analyst', 'Sales Executive'), 1000, replace = TRUE),
+    Salary = rnorm(1000, mean = 60000, sd = 15000)
+  )
+  
+  # Data summary output
+  output$data_summary <- renderPrint({
+    summary(df)
+  })
+  
+  # Employee table output
+  output$employee_table <- renderDT({
+    datatable(df, options = list(pageLength = 10))
+  })
+  
+  # Add a new employee
+  observeEvent(input$add_row, {
+    new_row <- data.frame(
+      Education = sample(c("Bachelor's", "Master's", "PhD"), 1),
+      JoiningYear = sample(2000:2023, 1),
+      City = sample(c('New York', 'San Francisco', 'Los Angeles', 'Chicago', 'Austin'), 1),
+      PaymentTier = sample(1:3, 1),
+      Age = sample(20:60, 1),
+      Gender = sample(c('Male', 'Female', 'Non-binary'), 1),
+      EverBenched = sample(c('No', 'Yes'), 1),
+      ExperienceInCurrentDomain = sample(0:20, 1),
+      LeaveOrNot = sample(0:1, 1),
+      Department = sample(c('IT', 'HR', 'Finance', 'Marketing', 'Sales'), 1),
+      JobRole = sample(c('Developer', 'Manager', 'Analyst', 'Sales Executive'), 1),
+      Salary = rnorm(1, mean = 60000, sd = 15000)
     )
-  )
-
-# Function to save plots with specified filename
-save_plot <- function(plot_object, filename) {
-  ggsave(filename, plot=plot_object)
+    df <<- rbind(df, new_row)
+    output$row_status <- renderText("New employee added!")
+  })
+  
+  # Render plots and other outputs
+  output$dept_plot <- renderPlotly({
+    ggplot(df, aes(x = Department, fill = Department)) + 
+      geom_bar() + 
+      labs(title = "Productivity by Department", x = "Department", y = "Count") +
+      theme_minimal()
+  })
+  
+  output$salary_plot <- renderPlotly({
+    ggplot(df, aes(x = Salary)) + 
+      geom_histogram(binwidth = 5000, fill = "blue", color = "black", alpha = 0.7) + 
+      labs(title = "Salary Distribution", x = "Salary", y = "Frequency") +
+      theme_minimal()
+  })
+  
+  output$correlation_plot <- renderPlot({
+    corr_matrix <- round(cor(df[, sapply(df, is.numeric)]), 2)
+    corrplot(corr_matrix, method = "circle", type = "upper")
+  })
+  
+  output$churn_plot <- renderPlotly({
+    churn_rate <- df %>% 
+      group_by(LeaveOrNot) %>% 
+      summarise(Count = n())
+    
+    ggplot(churn_rate, aes(x = factor(LeaveOrNot), y = Count, fill = factor(LeaveOrNot))) + 
+      geom_bar(stat = "identity") + 
+      labs(title = "Churn Analysis", x = "Churn Status (0 = No, 1 = Yes)", y = "Count") +
+      theme_minimal()
+  })
+  
+  output$gender_plot <- renderPlotly({
+    gender_productivity <- df %>% 
+      group_by(Gender) %>% 
+      summarise(AverageSalary = mean(Salary))
+    
+    ggplot(gender_productivity, aes(x = Gender, y = AverageSalary, fill = Gender)) + 
+      geom_bar(stat = "identity") + 
+      labs(title = "Gender Productivity Analysis", x = "Gender", y = "Average Salary") +
+      theme_minimal()
+  })
+  
+  output$year_trend_plot <- renderPlotly({
+    yearly_trend <- df %>% 
+      group_by(JoiningYear) %>% 
+      summarise(AverageSalary = mean(Salary))
+    
+    ggplot(yearly_trend, aes(x = JoiningYear, y = AverageSalary)) + 
+      geom_line() + 
+      labs(title = "Performance Trends by Year", x = "Year", y = "Average Salary") +
+      theme_minimal()
+  })
+  
+  output$salary_performance_plot <- renderPlotly({
+    ggplot(df, aes(x = Salary, y = ExperienceInCurrentDomain)) + 
+      geom_point() + 
+      labs(title = "Salary vs Experience", x = "Salary", y = "Experience in Current Domain") +
+      theme_minimal()
+  })
+  
+  output$education_plot <- renderPlotly({
+    education_productivity <- df %>% 
+      group_by(Education) %>% 
+      summarise(AverageSalary = mean(Salary))
+    
+    ggplot(education_productivity, aes(x = Education, y = AverageSalary, fill = Education)) + 
+      geom_bar(stat = "identity") + 
+      labs(title = "Education Productivity", x = "Education Level", y = "Average Salary") +
+      theme_minimal()
+  })
+  
+  output$demographics_plot <- renderPlotly({
+    age_distribution <- df %>% 
+      group_by(Age) %>% 
+      summarise(Count = n())
+    
+    ggplot(age_distribution, aes(x = Age, y = Count)) + 
+      geom_line() + 
+      labs(title = "Demographics Age Distribution", x = "Age", y = "Count") +
+      theme_minimal()
+  })
+  
+  output$retention_rate_plot <- renderPlotly({
+    retention_rate <- df %>% 
+      group_by(LeaveOrNot) %>% 
+      summarise(Count = n())
+    
+    ggplot(retention_rate, aes(x = factor(LeaveOrNot), y = Count, fill = factor(LeaveOrNot))) + 
+      geom_bar(stat = "identity") + 
+      labs(title = "Employee Retention Analysis", x = "Retention Status", y = "Count") +
+      theme_minimal()
+  })
+  
+  output$job_role_experience_plot <- renderPlotly({
+    job_role_experience <- df %>% 
+      group_by(JobRole) %>% 
+      summarise(AverageExperience = mean(ExperienceInCurrentDomain))
+    
+    ggplot(job_role_experience, aes(x = JobRole, y = AverageExperience, fill = JobRole)) + 
+      geom_bar(stat = "identity") + 
+      labs(title = "Job Role vs Experience", x = "Job Role", y = "Average Experience") +
+      theme_minimal()
+  })
+  
+  output$payment_tier_plot <- renderPlotly({
+    payment_tier_insights <- df %>% 
+      group_by(PaymentTier) %>% 
+      summarise(AverageSalary = mean(Salary))
+    
+    ggplot(payment_tier_insights, aes(x = factor(PaymentTier), y = AverageSalary, fill = factor(PaymentTier))) + 
+      geom_bar(stat = "identity") + 
+      labs(title = "Payment Tier Insights", x = "Payment Tier", y = "Average Salary") +
+      theme_minimal()
+  })
+  
+  # Employee Overview Outputs
+  output$demographics_summary <- renderPrint({
+    total_employees <- nrow(df)
+    avg_age <- mean(df$Age)
+    avg_salary <- mean(df$Salary)
+    gender_counts <- table(df$Gender)
+    
+    cat("Total Employees:", total_employees, "\n")
+    cat("Average Age:", round(avg_age, 2), "\n")
+    cat("Average Salary:", round(avg_salary, 2), "\n\n")
+    cat("Gender Distribution:\n")
+    print(gender_counts)
+  })
+  
+  output$job_role_distribution <- renderPlotly({
+    job_role_distribution <- df %>%
+      group_by(JobRole) %>%
+      summarise(Count = n())
+    
+    ggplot(job_role_distribution, aes(x = JobRole, y = Count, fill = JobRole)) + 
+      geom_bar(stat = "identity") + 
+      labs(title = "Job Role Distribution", x = "Job Role", y = "Count") +
+      theme_minimal()
+  })
+  
+  # Department Insights Outputs
+  output$average_salary_by_department <- renderPlotly({
+    avg_salary_by_department <- df %>%
+      group_by(Department) %>%
+      summarise(AverageSalary = mean(Salary))
+    
+    ggplot(avg_salary_by_department, aes(x = Department, y = AverageSalary, fill = Department)) + 
+      geom_bar(stat = "identity") + 
+      labs(title = "Average Salary by Department", x = "Department", y = "Average Salary") +
+      theme_minimal()
+  })
+  
+  output$department_summary <- renderPrint({
+    dept_summary <- df %>%
+      group_by(Department) %>%
+      summarise(Count = n(), AverageSalary = mean(Salary))
+    
+    print(dept_summary)
+  })
 }
 
-# Function to generate summary statistics for a given variable
-generate_summary_stats <- function(data_frame, variable) {
-  summary_stats <- data_frame %>%
-    summarise(
-      Mean = mean(get(variable), na.rm=TRUE),
-      Median = median(get(variable), na.rm=TRUE),
-      SD = sd(get(variable), na.rm=TRUE),
-      Min = min(get(variable), na.rm=TRUE),
-      Max = max(get(variable), na.rm=TRUE)
-    )
-  return(summary_stats)
-}
-
-# Generate summary statistics for key variables
-salary_stats <- generate_summary_stats(df, "AnnualSalary")
-cat("Summary Statistics for Annual Salary:\n")
-print(salary_stats)
-
-productivity_stats <- generate_summary_stats(df, "ProductivityScore")
-cat("Summary Statistics for Productivity Score:\n")
-print(productivity_stats)
-
-# Step X: Generate plots and save them
-
-# Plot: Productivity by Department
-productivity_by_department <- df %>%
-  group_by(Department) %>%
-  summarise(AverageProductivity = mean(ProductivityScore))
-
-p1 <- ggplot(productivity_by_department, aes(x = Department, y = AverageProductivity)) +
-  geom_bar(stat="identity", fill="steelblue") +
-  custom_theme +
-  labs(title="Average Productivity by Department", x="Department", y="Average Productivity")
-
-save_plot(p1, "Average_Productivity_by_Department.png")
-
-# Plot: Salary Distribution by Department (Boxplot)
-p2 <- ggplot(df, aes(x = Department, y = AnnualSalary)) +
-  geom_boxplot(fill="lightblue") +
-  custom_theme +
-  labs(title="Salary Distribution by Department", x="Department", y="Annual Salary")
-
-save_plot(p2, "Salary_Distribution_by_Department.png")
-
-# Plot: Productivity by Job Role
-productivity_by_role <- df %>%
-  group_by(JobRole) %>%
-  summarise(AverageProductivity = mean(ProductivityScore))
-
-p3 <- ggplot(productivity_by_role, aes(x = JobRole, y = AverageProductivity)) +
-  geom_bar(stat="identity", fill="coral") +
-  custom_theme +
-  labs(title="Average Productivity Score by Job Role", x="Job Role", y="Average Productivity Score")
-
-save_plot(p3,"Average_Productivity_by_Job_Role.png")
-
-# Plot: Correlation Matrix
-num_vars <- df %>%
-  select(AnnualSalary, ExperienceInCurrentDomain, PerformanceRating, ProductivityScore)
-
-correlation_matrix <- cor(num_vars)
-png("Correlation_Matrix.png")
-corrplot(correlation_matrix, method="circle", bg = "white")
-dev.off()
-
-# Step12: Regression Analysis
-model <- lm(ProductivityScore ~ AnnualSalary + ExperienceInCurrentDomain + PerformanceRating + Age + Gender + Education + LeaveOrNot + PaymentTier + City + Department + JobRole,
-            data=df)
-summary(model)
-
-# Step13: Clustering Analysis
-set.seed(123)
-clusters <- kmeans(df[, c("AnnualSalary", "ProductivityScore")], centers=3)
-df$Cluster <- as.factor(clusters$cluster)
-
-# Plot: Clustering of Employees based on Salary and Productivity
-p5 <- ggplot(df, aes(x=AnnualSalary, y=ProductivityScore, color=Cluster)) +
-  geom_point(size=3) +
-  custom_theme +
-  labs(title="Clustering of Employees based on Salary and Productivity", x="Annual Salary", y="Productivity Score")
-
-save_plot(p5,"Clustering_of_Employees.png")
-
-# Plot: Employee Churn Analysis (LeaveOrNot)
-churn_analysis <- df %>%
-  group_by(LeaveOrNot) %>%
-  summarise(
-    AverageProductivity = mean(ProductivityScore),
-    AveragePerformance = mean(PerformanceRating),
-    AverageExperience = mean(ExperienceInCurrentDomain),
-    AverageSalary = mean(AnnualSalary)
-  )
-
-p6 <- ggplot(churn_analysis, aes(x=factor(LeaveOrNot), y=AverageProductivity)) +
-  geom_bar(stat="identity", fill="orange") +
-  custom_theme +
-  labs(title="Productivity Score by Employee Churn (0=Stayed;1=Left)", x="Leave Status", y="Productivity Score")
-
-save_plot(p6, "Churn_Analysis.png")
-
-# Plot: Gender-based Productivity Analysis
-gender_analysis <- df %>%
-  group_by(Gender) %>%
-  summarise(
-    AverageProductivity = mean(ProductivityScore),
-    AveragePerformance = mean(PerformanceRating),
-    AverageSalary = mean(AnnualSalary)
-  )
-
-p7 <- ggplot(gender_analysis, aes(x = Gender, y = AverageProductivity)) +
-  geom_bar(stat="identity", fill="purple") +
-  custom_theme +
-  labs(title="Average Productivity Score by Gender", x="Gender", y="Average Productivity")
-
-save_plot(p7, "Gender_Productivity_Analysis.png")
-
-# Plot: Performance Trends by Year of Joining
-year_analysis <- df %>%
-  group_by(JoiningYear) %>%
-  summarise(
-    AveragePerformance = mean(PerformanceRating),
-    AverageProductivity = mean(ProductivityScore)
-  )
-
-p8 <- ggplot(year_analysis, aes(x = JoiningYear, y = AveragePerformance)) +
-  geom_line(color='blue') +
-  custom_theme +
-  labs(title='Average Performance Rating Trends Over Years of Joining',
-       x='Year of Joining',
-       y='Average Performance Rating')
-
-save_plot(p8, "Performance_Trends_by_Year_of_Joining.png")
-
-# Plot: Salary vs Performance Rating
-p9 <- ggplot(df, aes(x = AnnualSalary, y = PerformanceRating)) +
-  geom_point(aes(color = Department, size = ExperienceInCurrentDomain)) +
-  custom_theme +
-  labs(title="Annual Salary vs Performance Rating", x="Annual Salary", y="Performance Rating")
-
-save_plot(p9, "Salary_vs_Performance_Rating.png")
-
-# Plot: Education and Productivity Analysis
-education_analysis <- df %>%
-  group_by(Education) %>%
-  summarise(
-    AverageProductivity = mean(ProductivityScore),
-    AveragePerformance = mean(PerformanceRating),
-    AverageSalary = mean(AnnualSalary)
-  )
-
-p10 <- ggplot(education_analysis, aes(x = Education, y = AverageProductivity)) +
-  geom_bar(stat="identity") +
-  custom_theme +
-  labs(title="Average Productivity Score by Education Level", x="Education Level", y="Average Productivity Score")
-
-save_plot(p10, "Education_Productivity_Analysis.png")
-# Additional Analysis: Detailed Employee Demographics Visualization 
-demographics_plot_data <- df %>% 
-  group_by(Gender) %>% 
-  summarise(AverageAge = mean(Age), 
-            Count=n())
-
-p11 <- ggplot(demographics_plot_data,aes(x=reorder(Gender,-Count),y=AverageAge)) +
-  geom_bar(stat='identity', fill='lightblue') +
-  theme_minimal(base_family="sans") +
-  theme(panel.background = element_rect(fill = "white")) +
-  labs(title='Average Age Distribution per Gender',x='Gender',y='Average Age')
-
-save_plot(p11,"Demographics_Age_Distribution.png")
-
-# Additional Analysis: Employee Retention Rates Visualization 
-retention_rate <- df %>%
-  group_by(Department) %>%
-  summarise(RetentionRate=sum(LeaveOrNot==0)/n())
-
-p12 <- ggplot(retention_rate,aes(x=reorder(Department,-RetentionRate),y=RetentionRate)) +
-  geom_bar(stat='identity',fill='lightcoral') +
-  theme_minimal(base_family="sans") +
-  theme(panel.background = element_rect(fill = "white")) +
-  labs(title='Employee Retention Rate by Department',x='Department',y='Retention Rate')
-
-save_plot(p12,"Employee_Retention_Rate.png")
-
-# Additional Analysis: Detailed Performance vs. Experience Analysis 
-experience_performance_plot_data <- df %>% 
-  group_by(JobRole) %>% 
-  summarise(AverageExperience=max(ExperienceInCurrentDomain), 
-            AvgPerf=max(PerformanceRating))
-
-p13 <- ggplot(experience_performance_plot_data,aes(x=reorder(JobRole,-AvgPerf),y=AverageExperience)) +
-  geom_point(size=4,color='darkgreen') +
-  theme_minimal(base_family="sans") +
-  theme(panel.background = element_rect(fill = "white")) +
-  labs(title='Job Role vs. Experience in Current Domain',x='Job Role',y='Average Experience')
-
-save_plot(p13,"Job_Role_vs_Average_Experience.png")
-
-# Additional Insights on Payment Tiers 
-payment_tier_insights <- df %>% 
-  group_by(PaymentTier) %>% 
-  summarise(AverageAge=max(Age), Count=n())
-
-p14 <- ggplot(payment_tier_insights,aes(x=reorder(PaymentTier,-Count),y=AverageAge)) +
-  geom_bar(stat='identity') +
-  theme_minimal(base_family="sans") +
-  theme(panel.background = element_rect(fill = "white")) +
-  labs(title='Payment Tier Insights on Employee Count and Age Distribution',
-       x='Payment Tier',
-       y='Average Age')
-
-save_plot(p14,"Payment_Tier_Age_Distribution.png")
-
-# Summary Report Generation Function
-generate_summary_report <- function(data_frame) {
-  cat("\n--- Summary Report ---\n")
-  
-  # Overall Summary Statistics
-  overall_summary <- data_frame %>%
-    summarise(
-      TotalEmployees = n(),
-      AvgAge = mean(Age),
-      AvgSalary = mean(AnnualSalary),
-      AvgProductivity = mean(ProductivityScore)
-    )
-  
-  print(overall_summary)
-  
-  # Summary by Gender
-  gender_summary <- data_frame %>%
-    group_by(Gender) %>%
-    summarise(
-      Count=n(),
-      AvgAge = mean(Age),
-      AvgSalary = mean(AnnualSalary),
-      AvgProductivity = mean(ProductivityScore)
-    )
-  
-  cat("\n--- Summary by Gender ---\n")
-  print(gender_summary)
-  
-  # Summary by Department
-  department_summary <- data_frame %>%
-    group_by(Department) %>%
-    summarise(
-      Count=n(),
-      AvgAge = mean(Age),
-      AvgSalary = mean(AnnualSalary),
-      AvgProductivity = mean(ProductivityScore)
-    )
-  
-  cat("\n--- Summary by Department ---\n")
-  print(department_summary)
-}
-
-# Generate Summary Report
-generate_summary_report(df)
-
-
-
-
+# Run the application 
+shinyApp(ui = ui, server = server)
